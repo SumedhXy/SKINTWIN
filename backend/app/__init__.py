@@ -1,0 +1,1 @@
+"""SkinTwin FastAPI application package."""

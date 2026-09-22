@@ -1,0 +1,59 @@
+# General
+.DS_Store
+*.log
+*.tmp
+*.bak
+*.swp
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE/editor files
+.idea/
+.vscode/
+*.iml
+.metadata
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+**/build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-asset-cache
+
+# Python / backend
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+**/.venv/
+venv/
+**/venv/
+*.sqlite3
+
+# Backend generated data
+backend/pgdata/
+backend/uploads/
+backend/outputs/
+backend/.pytest_cache/
+backend/.env
+
+# Local ML model weights
+backend/models/*.pth
+
+# Node / frontend tooling
+node_modules/
+dist/
+coverage/
+
+# OS generated
+.DS_Store

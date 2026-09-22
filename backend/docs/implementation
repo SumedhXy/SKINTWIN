@@ -1,0 +1,251 @@
+# SkinTwin Backend Implementation Documentation
+
+**Document Version:** 1.0.0  
+**Status:** Foundation & Core Services Completed  
+**Base Path:** `/api/v1`  
+**Server URL:** `http://127.0.0.1:8000`  
+**Swagger UI:** `http://127.0.0.1:8000/api/v1/docs`  
+
+---
+
+## 1. Project Overview & Architecture
+
+SkinTwin creates a persistent digital representation of an individual skin finding, updated through standardized photographs and longitudinal observable-change tracking. 
+
+The workspace is organized into clean, independent directories:
+
+```text
+untitled/
+├── frontend/                     # Flutter Web & Mobile application (Port 8082)
+│   ├── lib/                      # Flutter UI screens, state, models
+│   ├── android/                  # Android native project
+│   ├── web/                      # Web entry point
+│   ├── pubspec.yaml              # Dart dependencies
+│   └── ...
+│
+├── backend/                      # FastAPI Python Application (Port 8000)
+│   ├── app/
+│   │   ├── main.py               # Application factory & middleware
+│   │   ├── core/                 # Settings, security, errors
+│   │   ├── database/             # SQLAlchemy engine & session
+│   │   ├── models/               # Database ORM models
+│   │   ├── schemas/              # Pydantic request/response schemas
+│   │   ├── api/v1/               # Versioned route endpoints
+│   │   ├── services/             # Business logic layer
+│   │   └── dependencies/         # Auth & DB injection
+│   ├── alembic/                  # Database migration scripts
+│   ├── tests/                    # Automated pytest suite
+│   ├── requirements.txt          # Python dependencies
+│   ├── .env                      # Local environment configuration
+│   └── alembic.ini               # Migration configuration
+│
+└── skintwin_ai_build_docs/       # AI & Clinical Architecture Specs
+```
+
+---
+
+## 2. Technology Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| **Framework** | FastAPI 0.115+ | High-performance asynchronous REST API |
+| **Server** | Uvicorn | ASGI web server |
+| **ORM** | SQLAlchemy 2.0+ | Database modeling and queries |
+| **Migrations** | Alembic 1.13+ | Schema versioning and auto-generation |
+| **Validation** | Pydantic v2 + Pydantic-Settings | Request parsing and environment management |
+| **Database** | PostgreSQL / SQLite | Data persistence (SQLite default for tests/local dev) |
+| **Authentication** | PyJWT + Bcrypt | Cryptographic JWT tokens and salted password hashes |
+| **Testing** | Pytest + HTTPX + Starlette TestClient | Automated test suite with in-memory isolation |
+
+---
+
+## 3. Database Schema & Tables
+
+All tables were modeled in SQLAlchemy and migrated via Alembic (`alembic/versions/3707d49db3c9_initial_tables.py`).
+
+### 1. `users` Table
+Stores registered accounts:
+- `id` (String UUID, Primary Key)
+- `email` (String 255, Unique, Indexed)
+- `password_hash` (String 255, Bcrypt hashed)
+- `full_name` (String 255, Nullable)
+- `is_active` (Boolean, default `True`)
+- `account_status` (String 50, default `"active"`)
+- `created_at` (DateTime with timezone)
+- `updated_at` (DateTime with timezone)
+- `last_login_at` (DateTime with timezone, Nullable)
+
+### 2. `skintwins` Table
+Stores individual persistent digital skin findings:
+- `id` (String UUID, Primary Key)
+- `user_id` (ForeignKey `users.id` with CASCADE delete)
+- `public_id` (String 64, Unique, e.g. `st-xxxx`)
+- `name` (String 150)
+- `body_location` (String 100)
+- `body_side` (String 50, e.g. `"left"`, `"right"`)
+- `description` (Text, Nullable)
+- `status` (String 50, default `"active"`)
+- `baseline_capture_id` (String UUID, Nullable)
+- `created_at`, `updated_at`, `last_capture_at`
+
+### 3. `captures` Table
+Stores standardized photographs and imaging metadata:
+- `id` (String UUID, Primary Key)
+- `skintwin_id` (ForeignKey `skintwins.id` with CASCADE delete)
+- `user_id` (ForeignKey `users.id` with CASCADE delete)
+- `image_object_key` (String 500, private storage key)
+- `image_hash` (String 64, SHA-256 integrity hash)
+- `captured_at`, `uploaded_at`
+- `quality_status` (String 50, default `"acceptable"`)
+- `quality_score` (Float, Nullable)
+- `reference_scale_available` (Boolean, default `False`)
+- `measurement_status` (String 50, default `"unavailable"`)
+- `device_metadata` (Text JSON)
+
+### 4. `comparisons` Table
+Tracks observable differences across pairs of captures:
+- `id` (String UUID, Primary Key)
+- `skintwin_id`, `user_id`
+- `earlier_capture_id`, `latest_capture_id`
+- `comparison_status` (e.g. `"completed"`)
+- `alignment_status` (e.g. `"aligned"`)
+- `reliability_status` (e.g. `"moderate"`)
+- `observable_change_summary` (Text)
+
+### 5. `notes` Table
+Patient symptom entries and notes:
+- `id`, `user_id`, `skintwin_id`, `capture_id`
+- `note_text` (Text)
+- `symptoms` (String 255)
+- `created_at`, `updated_at`
+
+### 6. `sharing_permissions` Table
+Doctor / clinic access controls with revocation capability:
+- `id`, `user_id`, `skintwin_id`
+- `recipient_identifier` (String 255)
+- `permission_level` (String 50, default `"view"`)
+- `expiry_time`, `revoked_time`
+
+---
+
+## 4. Implemented API Endpoints
+
+### Health Check
+
+#### `GET /health` and `GET /api/v1/health`
+Checks server and database connection status.
+- **Response `200 OK`**:
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "database": "connected",
+  "environment": "development"
+}
+```
+
+---
+
+### Authentication
+
+#### 1. Register User
+`POST /api/v1/auth/register`
+- **Request Body**:
+```json
+{
+  "email": "sarah.connor@example.com",
+  "password": "SuperSecretPassword123!",
+  "full_name": "Sarah Connor"
+}
+```
+- **Validation**:
+  - Valid email format.
+  - Password minimum 8 characters.
+  - Rejects duplicate email addresses with `409 Conflict`.
+- **Response `201 Created`**:
+```json
+{
+  "id": "7632616f-d102-4ec4-946f-c1ab6cf5f377",
+  "email": "sarah.connor@example.com",
+  "full_name": "Sarah Connor",
+  "is_active": true,
+  "account_status": "active",
+  "created_at": "2026-09-18T12:25:00.000Z",
+  "last_login_at": null
+}
+```
+
+#### 2. Login & Token Generation
+`POST /api/v1/auth/login`
+- **Request Body**:
+```json
+{
+  "email": "sarah.connor@example.com",
+  "password": "SuperSecretPassword123!"
+}
+```
+- **Response `200 OK`**:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in_minutes": 60,
+  "user": {
+    "id": "7632616f-d102-4ec4-946f-c1ab6cf5f377",
+    "email": "sarah.connor@example.com",
+    "full_name": "Sarah Connor",
+    "is_active": true,
+    "account_status": "active",
+    "created_at": "2026-09-18T12:25:00.000Z",
+    "last_login_at": "2026-09-18T12:26:00.000Z"
+  }
+}
+```
+
+#### 3. Current User Profile
+`GET /api/v1/users/me` (and `GET /api/v1/auth/me`)
+- **Headers**: `Authorization: Bearer <access_token>`
+- **Response `200 OK`**: Returns authenticated user profile.
+- **Response `401 Unauthorized`**: If token is missing, expired, or invalid.
+
+---
+
+## 5. Standardized Error Response Format
+
+All error responses follow this exact schema to prevent security leaks:
+
+```json
+{
+  "error": {
+    "code": "EMAIL_ALREADY_REGISTERED",
+    "message": "An account with this email address already exists.",
+    "request_id": "c1f7bca4-927b-4029-a78b-d7db9b48c3b4"
+  }
+}
+```
+
+---
+
+## 6. How to Run and Test the Backend
+
+### Start the FastAPI Server
+From the root or backend folder:
+```powershell
+cd c:\Users\sumed\Downloads\untitled\backend
+& ".\.venv\Scripts\uvicorn.exe" app.main:app --reload --host 127.0.0.1 --port 8000
+```
+- Interactive Swagger UI: `http://127.0.0.1:8000/api/v1/docs`
+- ReDoc UI: `http://127.0.0.1:8000/api/v1/redoc`
+
+### Run Automated Tests
+```powershell
+cd c:\Users\sumed\Downloads\untitled\backend
+& ".\.venv\Scripts\pytest.exe" tests -v
+```
+**Current Result:** 11/11 tests passing (100% success rate).
+
+### Run Database Migrations
+```powershell
+cd c:\Users\sumed\Downloads\untitled\backend
+& ".\.venv\Scripts\alembic.exe" upgrade head
+```

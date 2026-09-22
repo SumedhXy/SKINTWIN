@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: skintwin-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: "https://your-frontend-url.example.com"
+      - key: STORAGE_TYPE
+        value: local
+      - key: LOCAL_STORAGE_DIR
+        value: /tmp/skintwin-uploads
+      - key: AI_PROVIDER
+        value: deterministic
+      - key: GEMINI_API_KEY
+        sync: false
+    autoDeploy: true

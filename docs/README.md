@@ -1,0 +1,1 @@
+# Project documentation\n\n## Structure\n- project/: product requirements, design, and strategy documents\n- ai/: AI and computer-vision research, workflow, and system docs\n- operations/: deployment, privacy, security, and operational reliability docs\n- backend/: backend implementation documents and API notes\n

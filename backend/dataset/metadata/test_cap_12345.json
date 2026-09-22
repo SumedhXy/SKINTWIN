@@ -1,0 +1,21 @@
+{
+  "capture_id": "test_cap_12345",
+  "image_path": "dataset\\images\\test_cap_12345.png",
+  "mask_path": "dataset\\masks\\test_cap_12345_mask.png",
+  "image_dimensions": [
+    100,
+    100
+  ],
+  "finding_type": "mole",
+  "prompt": {
+    "bbox": [
+      25,
+      25,
+      75,
+      75
+    ],
+    "source": "user_bbox"
+  },
+  "area_px": 1600.0,
+  "non_diagnostic_disclaimer": "This sample is prepared for observable technical segmentation fine-tuning only. Not for medical diagnosis or clinical classification."
+}
